@@ -1,6 +1,8 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.response import Response
 from users.models import User, NGOProfile, VolunteerProfile
 from complaints.models import Complaint, Task
 from .serializers import (
@@ -15,6 +17,25 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(citizen=self.request.user)
+        
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def resolve_admin(self, request, pk=None):
+        complaint = self.get_object()
+        if request.user.role != User.Role.ADMIN and not request.user.is_superuser:
+            return Response({'error': 'Only admins can resolve directly.'}, status=status.HTTP_403_FORBIDDEN)
+        complaint.status = Complaint.Status.RESOLVED
+        complaint.save()
+        return Response({'status': 'Complaint resolved by admin'})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def read_admin(self, request, pk=None):
+        complaint = self.get_object()
+        if request.user.role != User.Role.ADMIN and not request.user.is_superuser:
+            return Response({'error': 'Only admins can mark read directly.'}, status=status.HTTP_403_FORBIDDEN)
+        if complaint.status == Complaint.Status.PENDING:
+            complaint.status = Complaint.Status.ACCEPTED # 'ACCEPTED' used as 'Read/Acknowledged'
+            complaint.save()
+        return Response({'status': 'Complaint marked as read by admin'})
         
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def accept_complaint(self, request, pk=None):
@@ -90,3 +111,21 @@ class TaskViewSet(viewsets.ModelViewSet):
 class NGOProfileViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = NGOProfile.objects.filter(is_verified=True)
     serializer_class = NGOProfileSerializer
+
+class RegisterView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        if not username or not password:
+            return Response({'error': 'Username and password required'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=username).exists():
+            return Response({'error': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        user = User.objects.create_user(username=username, password=password, role=User.Role.CITIZEN)
+        return Response({'status': 'User created'}, status=status.HTTP_201_CREATED)
+
+class MeView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
