@@ -24,7 +24,7 @@ function Home() {
   const [complaints, setComplaints] = useState([]);
 
   useEffect(() => {
-    axios.get('/api/complaints/')
+    axios.get('/complaints/')
       .then(res => setComplaints(res.data))
       .catch(err => console.error("Error fetching complaints:", err));
   }, []);
@@ -209,7 +209,7 @@ function Dashboard() {
   const [complaints, setComplaints] = useState([]);
 
   useEffect(() => {
-    axios.get('/api/complaints/')
+    axios.get('/complaints/')
       .then(res => setComplaints(res.data))
       .catch(err => console.error("Error fetching complaints:", err));
   }, []);
